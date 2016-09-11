@@ -1,20 +1,36 @@
 #include "Arduino.h"
+#include "Servo.h"
+#include "EEPROM.h"
 /*
  */
 
 
-/* ------------------------------------------------ interrupt code: handler for ALL Arduino pins */
-/* ### Interrupt handler: when setup through pciSetup(), ISR-function will be called ### */
-char last_interrupt_port = false;		// 'lockobject': this will be altered when interrupt fired
-void pciSetup(byte pin) {
-	*digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
-	PCIFR  |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
-	PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
+class CustomServo: public Servo {
+private:
+	unsigned long lastmillis;
+public:
+	int pin;
+	void maintain();
+	void turnOn(uint8_t v);
+	void turnOff();
+};
+
+void CustomServo::maintain() {
+	if ( millis() - lastmillis > 1000 ){
+		this->detach();
+	}
 }
-ISR (PCINT0_vect){ last_interrupt_port = 'A'; } // handle pin change interrupt for D8 to D13 here
-ISR (PCINT1_vect){ last_interrupt_port = 'B'; } // handle pin change interrupt for A0 to A5 here
-ISR (PCINT2_vect){ last_interrupt_port = 'C'; }	// handle pin change interrupt for D0 to D7 here
-/* ### end interrupt handler and callback routines ### */
+
+void CustomServo::turnOn(uint8_t v) {
+	Serial.println("on");
+	this->attach(pin);
+	this->write(v);
+	lastmillis = millis();
+}
+
+void CustomServo::turnOff() {
+	 Serial.println("on");
+}
 
 
 /* ------------------------------------------------------------ here we start */
@@ -23,6 +39,9 @@ const int button1 =	A0;
 const int poti1 =	A1;
 const int led1 = 	11;
 
+uint8_t ServoPins[4] = { 2,3,4,5 };
+CustomServo ServoObj[4];
+
 /* finally: the arduino style main functions */
 void setup() {
 	// setup pinmodes
@@ -30,21 +49,17 @@ void setup() {
 	pinMode(poti1, INPUT);
 	pinMode(led1, OUTPUT);
 
-	pciSetup(button1);		// interrupt: register pin to go to ISR()-Method when raising/falling
-
 	Serial.begin(115200);
 	Serial.println("hi");
+	for (int i=0; i++; i < sizeof(ServoPins)){
+		ServoObj[i].pin = ServoPins[i];
+	}
 }
 
 void loop() {
-	if (last_interrupt_port) {				// was there a interrupt while i was sleeping?
-		if (not digitalRead(button1)) {  	// was the interrupt upon a release of button1?
-			Serial.println("jopo");
-		}
+	analogWrite(led1, random(64,255));
+	for (int i=0; i++; i < sizeof(ServoPins)){
+		ServoObj[i].turnOn(analogRead(poti1)* 180.0 / 1024.0 );
+		ServoObj[i].maintain();
 	}
-
-	Serial.println("jooo");
-
-	// now delay according the the poti1 setting
-	delay(analogRead(poti1) / 50 );
 }
