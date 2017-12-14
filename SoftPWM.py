@@ -49,6 +49,7 @@ from abc import ABCMeta, abstractmethod
 
 class _PWM(object):
     # abstract generic PWM generating class, please implement __setPin() method
+    # todo: do not do as thread - does not work too nice
     __metaclass__ = ABCMeta
     def __init__(self, pin, freq=0.01):
         assert isinstance(pin, int)
@@ -89,7 +90,7 @@ class _PWM(object):
             self._setPin(False)            # set pin off
             sleep(time_off)
 
-    def setPercent(self, percent, duration=None):
+    def setDutyValue(self, percent, duration=None):
         # user-access: set duty-cycle in percent
         assert isinstance(percent, float)
         assert (isinstance(duration, float) or isinstance(duration, type(None)))
@@ -98,8 +99,10 @@ class _PWM(object):
         self.attach()
         if not duration is None:
             # as __timeout is synchronized, this can be done after thread-start
-            assert duration > 0.0
+            assert duration > 0
             self.__timeout.value = time() + duration
+        else:
+            self.__timeout.value = 0
 
     def __del__(self):
         try:
@@ -216,9 +219,9 @@ if __name__ == "__main__":
     MyPWM = PWM_Class(pin, freq=freq)
 
     # start PWM generating thread
-    MyPWM.setPercent(percent)
+    MyPWM.setDutyValue(percent)
 
-    # sleep a bit
+    # wait a bit
     sleep(duration)
 
     # stop PWM generation again
