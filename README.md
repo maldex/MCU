@@ -1,2 +1,3 @@
-# Arduino and MCU Related stuff and notes
-please note this was done with Arduino 1.5.2 and Eclipse CDT 4.3.1 - already old and superceeded by now
+Bucket project for Arduino, MCU and otherwise electronic related stuff, things, trials and IoT
+
+lot of it is Arduino 1.5.2 and Eclipse CDT 4.3.1 - quite old
