@@ -27,7 +27,6 @@ Hence the idea to implement this in plain C.
 cheers
 '''
 
-
 program_description = '''Software Pulse Width Modulation for GPIO Pins.
 
 You remember PWM? For instance, your GPIO generates 0 or 5Volt
@@ -47,16 +46,16 @@ from multiprocessing import Process, Value
 from time import sleep, time
 from abc import ABCMeta, abstractmethod
 
+#todo: remove the thread, this was a stupid idea
 class _PWM(object):
     # abstract generic PWM generating class, please implement __setPin() method
-    # todo: do not do as thread - does not work too nice
     __metaclass__ = ABCMeta
     def __init__(self, pin, freq=0.01):
         assert isinstance(pin, int)
         assert isinstance(freq, float)
         self.pin = pin
         self.__freq = freq
-        self.__duty_cycle = 0
+        self.__duty_cycle = 0.0
         self.__thread = None
         self.__timeout = Value('f', 0)  # thread-save data-type
 
@@ -84,25 +83,22 @@ class _PWM(object):
         time_on = self.__duty_cycle
         time_off = self.__freq - self.__duty_cycle
         # todo: improve the PWM generation - review timing
-        while self.__timeout.value == 0 or time() < self.__timeout.value:
+        while self.__timeout.value == 0.0 or time() < self.__timeout.value:
             self._setPin(True)             # set pin on
             sleep(time_on)
             self._setPin(False)            # set pin off
             sleep(time_off)
 
-    def setDutyValue(self, percent, duration=None):
+    def setDutyValue(self, percent, duration=0.0):
         # user-access: set duty-cycle in percent
         assert isinstance(percent, float)
-        assert (isinstance(duration, float) or isinstance(duration, type(None)))
+        assert isinstance(duration, float)
         self.detach()
         self.__duty_cycle = self.__freq * percent / 100.0
+        if duration > 0.0:
+            duration += time()
+        self.__timeout.value = duration
         self.attach()
-        if not duration is None:
-            # as __timeout is synchronized, this can be done after thread-start
-            assert duration > 0
-            self.__timeout.value = time() + duration
-        else:
-            self.__timeout.value = 0
 
     def __del__(self):
         try:
@@ -229,4 +225,3 @@ if __name__ == "__main__":
 
     # all done
     quit(0)
-    
