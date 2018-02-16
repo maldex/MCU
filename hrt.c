@@ -1,107 +1,173 @@
-/* thx to gandro @ https://gist.github.com/gandro/95fa51fb2263891c56926595a90190db */
-/* compile as follows: gcc -Wall -lpthread -lrt -D_GNU_SOURCE hrt.c -o hrt */
+/* compile as follows: gcc -Wall -lpthread -std=gnu99 -lrt hrt.c -o hrt */
 
+#include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <time.h>
-#include <assert.h>
 
-struct timer_conf;
-typedef void (*timer_callback)(struct timer_conf *timer);
 
-/**
- * configuration struct passed down to the timer thread (and the callback)
- */
-struct timer_conf {
-    // timer interval in nanoseconds
-    long tick_ns;
-    // callback, timer is terminated if NULL
-    timer_callback callback;
+typedef void (*closure_t)(void *arg);
+
+struct pwm_conf {
+    /* PWM configuration */
+    long period_ns;
+    long duration_ns;
+    float duty_perc;
+
+    /* callbacks */
+    closure_t on_raising;
+    void *raising_arg;
+    closure_t on_falling;
+    void *falling_arg;
 };
 
-/** 
- * the timer thread loop, this is started in a new thread.
- * takes ownership overthe passed timer_conf
- */
-void *timer_loop(void *arg) {
-    struct timer_conf *timer = arg;
-    struct timespec ts;
+static void timespec_add_ns(struct timespec *ts, long ns) {
+    long total_ns = (ts->tv_sec * 1000000000L + ts->tv_nsec) + ns;
+    ts->tv_sec = total_ns / 1000000000L;
+    ts->tv_nsec = total_ns % 1000000000L;
+}
 
-    int rc = clock_getres(CLOCK_MONOTONIC, &ts);
-    assert_perror(rc); /* should only fail if user does not have permission */
-    assert(ts.tv_sec == 0); /* resolution should not be bigger than 1 sec */
+static void *pwm_thread(void *arg) {
+    struct pwm_conf *pwm = arg;
 
-    printf("Timer thread started. System resolution: %ld ns\n", ts.tv_nsec);
+    /* calculate duty cycle length */
+    long duty_ns = (double) pwm->period_ns * (double) pwm->duty_perc;
+    long idle_ns = pwm->period_ns - duty_ns;
 
-    /* read the initial time */
-    rc = clock_gettime(CLOCK_MONOTONIC, &ts);
-    assert(rc == 0);
-    while (timer->callback != NULL) {
-        /* set next wakeup time to current time + tick. for this to work, we
-         * need to convert the timespec struct to a nanosecond timestamp and
-         * back again.
-         */
-        long next_tick = (ts.tv_sec * 1000000000L + ts.tv_nsec) + timer->tick_ns;
-        ts.tv_sec = next_tick / 1000000000L;
-        ts.tv_nsec = next_tick % 1000000000L;
+    /* calculate number of periods */
+    long remaining = pwm->duration_ns / pwm->period_ns;
 
-        /* sleep until "next_tick" happens */
-        rc = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL);
-        assert_perror(rc);
-        
-        /* call the user function */
-        timer->callback(timer);
+    /* fetch the initial starting time */
+    struct timespec wakeup;
+    int rc = clock_gettime(CLOCK_MONOTONIC, &wakeup);
+    if (rc != 0) {
+        printf("pwm: failed to initalize clock: %s\n", strerror(rc));
+        goto cleanup;
     }
 
-    free(timer);
+    while (remaining--) {
+        /* raising edge */
+        timespec_add_ns(&wakeup, idle_ns);
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup, NULL);
+        pwm->on_raising(pwm->raising_arg);
+
+        /* falling edge */
+        timespec_add_ns(&wakeup, duty_ns);
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup, NULL);
+        pwm->on_falling(pwm->falling_arg);
+    }
+
+cleanup:
+    free(pwm);
     return NULL;
 }
 
-/**
- * the callback called for each tick. is allowed to modify the timer struct
- */
-static void on_tick(struct timer_conf *timer) {
-    static int count_down = 10;
-    printf("Tick! Countdown: %d\n", count_down);
+int pwm_start_thread(struct pwm_conf conf, pthread_t *ret) {
+    assert(conf.duty_perc > 0.0 && conf.duty_perc < 1.0);
+    assert(conf.duration_ns > conf.period_ns);
+    assert(conf.on_raising != NULL);
+    assert(conf.on_falling != NULL);
 
-    /* print current time, just as a test.
-     * IMPORTANT: This operation can range from 50 to 200ns
-     * https://blog.stalkr.net/2010/03/nanosecond-time-measurement-with.htm
-     */
-    struct timespec ts;
-    int rc = clock_gettime(CLOCK_REALTIME, &ts);
-    assert_perror(rc);
-    printf("Current Unix Time: %ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+    /* copy struct into thread */
+    int rc = 0;
+    pthread_attr_t attr;
+    struct pwm_conf *arg = NULL;
 
-    if (count_down == 0) {
-        /* disable timer */
-        timer->callback = NULL;
-    } else {
-        count_down--;
+    /* we configure the scheduling policy in the attributes */
+    rc = pthread_attr_init(&attr);
+    if (rc != 0) {
+        return rc;
     }
+
+    /* do not inherit the policy from the parent */
+    rc = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+    if (rc != 0) {
+        goto cleanup;
+    }
+
+    /* real-time thread with FIFO scheduling policy */
+    rc = pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+    if (rc != 0) {
+        goto cleanup;
+    }
+
+    /* highest priority on Linux */
+    struct sched_param param = { 99 }; 
+    rc = pthread_attr_setschedparam(&attr, &param);
+    if (rc != 0) {
+        goto cleanup;
+    }
+
+    /* allocate configuration struct for newly created thread */
+    arg = malloc(sizeof(struct pwm_conf));
+    if (arg == NULL) {
+        rc = EAGAIN;
+        goto cleanup;
+    } else {
+        /* copy config over to thread */
+        *arg = conf;
+    }
+
+    rc = pthread_create(ret, &attr, pwm_thread, (void *)arg);
+    if (rc != 0) {
+        /* only deallocate configuration if thread was never started */
+        free(arg);
+    }
+
+cleanup:
+    pthread_attr_destroy(&attr);
+    return rc;
 }
 
+/* CUSTOMIZATIONS AFTER THIS LINE */
 
 
- int main (int argc, char *argv[]) {
-    /* a config struct for the timer itself */
-    struct timer_conf *timer = calloc(1, sizeof(struct timer_conf));
-    timer->tick_ns = 100 * 1000000L; /* set tick to 100ms */
-    timer->callback = on_tick; /* this function is called on each tick */
+static void start_signal(void *arg) {
+    FILE *fp = arg;
+	pwrite(fileno(fp), "1", 1, 0);
+}
 
+static void stop_signal(void *arg) {
+    FILE *fp = arg;
+	pwrite(fileno(fp), "0", 1, 0);
+}
+
+#define MILLIS 1000*1000L
+
+int main(int argc, char *argv[]) {
+    struct pwm_conf pwm = { 0 };
+
+	FILE *fp = fopen("/sys/class/gpio/gpio3/value", "w");
+
+    pwm.period_ns = 20 * 1000 * 1000L; /* 1ms */
+    pwm.period_ns = 15 * 1000 * 1000L; /* 1ms */
+
+	pwm.duty_perc = 0.1;
+	
+    pwm.duration_ns = 200000 * MILLIS;
+
+    pwm.on_raising = start_signal;
+	pwm.raising_arg = fp;
+    pwm.on_falling = stop_signal;
+	pwm.falling_arg = fp;
+	
     /* thread handle, used to wait for the thread to finish */
-    pthread_t timer_thr;
-    
-    int rc = pthread_create(&timer_thr, NULL, timer_loop, (void *)timer);
-    assert_perror(rc);
+    pthread_t pwm_thread;
+    int rc = pwm_start_thread(pwm, &pwm_thread);
+    if (rc != 0) {
+        printf("failed to create pwm thread: %s\n", strerror(rc));
+        exit(-1);
+    }
 
-    /* do other stuff here */
-    
-    /* wait for timer to finish (and ignore its return value) */
-    rc = pthread_join(timer_thr, NULL);
-    assert_perror(rc);
-
-    /* Last thing that main() should do */
-    pthread_exit(NULL);
- }
+    rc = pthread_join(pwm_thread, NULL);
+    if (rc != 0) {
+        printf("failed to wait for pwm thread: %s\n", strerror(rc));
+        exit(-1);
+    }
+	
+	fclose(fp);
+}
