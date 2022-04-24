@@ -1,0 +1,7 @@
+core/*
+.settings/*
+.cproject
+.project
+.sproject
+spec.d
+sloeber.ino.cpp
