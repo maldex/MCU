@@ -15,8 +15,8 @@ Servo ServoL;
 #define pin_ledL	5
 #define pin_ledR	6
 
-const uint8_t calibL[] = {2, 180};
-const uint8_t calibR[] = {180, 2};
+const uint8_t calibL[] = {2, 178};
+const uint8_t calibR[] = {178, 2};
 
 
 byte mac[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x02 };
@@ -71,6 +71,13 @@ void maintain_ethernet() {
 
 }
 
+void calibdata(Servo ThisServo) {
+	while(true){
+		uint8_t val=map(analogRead(A0), 0, 1023, 0, 180);
+		Serial.println(val);
+		Serial.flush();
+		ThisServo.write(val);
+	}}
 
 void setup() {
 	Serial.begin(9600);
@@ -79,11 +86,14 @@ void setup() {
 	ServoL.attach(pin_servoL); ServoL.write(calibL[0]);
 	ServoR.attach(pin_servoR); ServoR.write(calibR[0]);
 
-	pinMode(pin_ledL, OUTPUT);
-	pinMode(pin_ledR, OUTPUT);
+	pinMode(pin_ledL, OUTPUT); digitalWrite(pin_ledL, true);
+	pinMode(pin_ledR, OUTPUT); digitalWrite(pin_ledR, true);
 
 	pinMode(pin_btnL, INPUT);
 	pinMode(pin_btnR, INPUT);
+
+	if (digitalRead(pin_btnL)) { digitalWrite(pin_ledR, false); calibdata(ServoL); }
+	if (digitalRead(pin_btnR)) { digitalWrite(pin_ledL, false); calibdata(ServoR); }
 
 	char dataString[50] = {0};
 	sprintf(dataString, "\n%02X:%02X:%02X:%02X:%02X:%02X dhcp ",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
@@ -96,10 +106,7 @@ void setup() {
 		} else if (Ethernet.linkStatus() == LinkOFF) {
 			Serial.println(F("No Link")); //broken - TODO
 		}
-		// no ip - no point in carrying on, so do nothing forevermore:
-		while (true) {
-			delay(1);
-		}
+		while (true) { delay(1); } // no ip - no point in carrying on, so do nothing forevermore:
 	}
 
 	Serial.println(Ethernet.localIP());
@@ -124,36 +131,10 @@ void loop() {
 		}
 		Serial.print("GETLINE: "); Serial.println(get_line);
 
-//		if (get_line == "/") { ; }
-//		else if (get_line == "/rightDown") { R = true; }
-//		else if (get_line == "/rightUp") { R = false; }
-
 		if (get_line == "/leftDown") {StateL = true;}
 		if (get_line == "/leftUp") {StateL = false;}
 		if (get_line == "/rightDown") {StateR = true;}
 		if (get_line == "/rightUp") {StateR = false;}
-
-//		if (get_line.indexOf("PRINTLN=") > 0) {
-//			String line = get_line.substring(get_line.indexOf("line=") + 5);
-//			Serial.println(line);
-//			Serial.println("--------------PRINTLN------------------");
-//		}
-//
-//		if (get_line.indexOf("CURSOR=") > 0) {
-//			uint8_t row_idx = get_line.indexOf("row=") + 4;
-//			uint8_t col_idx = get_line.indexOf("col=") + 4;
-//			uint8_t row_val = get_line.substring(row_idx, row_idx + 3).toInt();
-//			uint8_t col_val = get_line.substring(col_idx, col_idx + 3).toInt();
-//
-//			Serial.print(row_val);	Serial.print(" ");	Serial.print(col_val);
-//			Serial.println("--------------CURSOR------------------");
-//
-//		}
-//
-//		if (get_line.substring(0,7) == F("/?CLEAR")) {
-//			Serial.println("--------------CLEAR------------------");
-//		}
-//
 
 		client.println(HTML_HEADER);
 		client.println(HTML_BODY);
@@ -173,43 +154,4 @@ void loop() {
 	ServoR.write(calibR[R]);
 
 	Serial.flush();
-}
-
-//////////////////////////////////////////////////////////////////
-//Servo ServoR;
-//Servo ServoL;
-//
-//#define pin_servoL	8
-//#define pin_servoR	7
-//#define pin_btnL	A2
-//#define pin_btnR	A3
-//#define pin_ledL	5
-//#define pin_ledR	6
-
-void setup_2() {
-	Serial.begin(9600);
-	Serial.println("setup");
-
-	pinMode(pin_btnL, INPUT);
-	pinMode(pin_btnR, INPUT);
-
-	pinMode(pin_ledL, OUTPUT);
-	pinMode(pin_ledR, OUTPUT);
-
-	ServoL.attach(pin_servoL);
-	ServoR.attach(pin_servoR);
-}
-
-void loop_2(){
-	bool L = digitalRead(pin_btnL);
-	bool R = digitalRead(pin_btnR);
-
-	digitalWrite(pin_ledL, L);
-	digitalWrite(pin_ledR, R);
-
-	ServoL.write(180 * L);
-	ServoR.write(180 * R);
-
-	Serial.print(L); Serial.println(R);
-
 }
