@@ -106,7 +106,6 @@ void setup() {
 		} else if (Ethernet.linkStatus() == LinkOFF) {
 			Serial.println(F("No Link")); //broken - TODO
 		}
-		while (true) { delay(1); } // no ip - no point in carrying on, so do nothing forevermore:
 	}
 
 	Serial.println(Ethernet.localIP());
