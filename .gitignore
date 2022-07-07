@@ -2,7 +2,9 @@ Hello_World/
 .idea/
 .metadata
 */.cproject
+*/.sproject
 */.project
 */.settings
 */spec.d
 */Release
+*/sloeber.ino.cpp
