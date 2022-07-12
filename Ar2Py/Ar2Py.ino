@@ -3,7 +3,11 @@
 #define btn 2
 
 void isr1() {
-	Serial.print("2:"); Serial.println(digitalRead(btn));
+	if (digitalRead(btn)) {
+		Serial.println("on");
+	} else {
+		Serial.println("off");
+	}
 }
 
 void setup()

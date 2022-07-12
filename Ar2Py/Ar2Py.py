@@ -3,6 +3,9 @@
 
 import subprocess, time, serial    # pip install pyserial
 
+cmd_btn_wind = """powershell -c "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')"""
+cmd_btn_mute = """powershell (new-object -com wscript.shell).SendKeys([char]173)"""
+
 if __name__ == "__main__":
     comport = serial.Serial(port='//./COM4', baudrate=115200)
 
@@ -10,17 +13,16 @@ if __name__ == "__main__":
         try:
             line = comport.readline().strip().decode()
             print(line)
+
             if line == "idle":              # skip idle messages
                 continue
+            elif line == "on":
+                subprocess.Popen(cmd_btn_wind, close_fds=True)
+            elif line == "off":
+                subprocess.Popen(cmd_btn_mute, close_fds=True)
 
-            pin, value = line.split(':')    # expect line to be like   2:0  or 2:1
+            time.sleep(0.3)             # rate limit
+            flush = comport.read_all()  # flush inbound buffer
 
-            if value == '1':
-                subprocess.Popen("notepad.exe", close_fds=True)
-            if value == '0':
-                subprocess.Popen("taskkill /im notepad.exe")
-
-            time.sleep(1)
-            flush = comport.read_all()  # flush any buffer
         except KeyboardInterrupt:
             break
