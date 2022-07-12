@@ -20,9 +20,12 @@ if __name__ == "__main__":
                 subprocess.Popen(cmd_btn_wind, close_fds=True)
             elif line == "off":
                 subprocess.Popen(cmd_btn_mute, close_fds=True)
+            else:
+                print(F"unknown '{line}'")
+                continue                    # skip if incomplete command
 
-            time.sleep(0.3)             # rate limit
-            flush = comport.read_all()  # flush inbound buffer
+            time.sleep(0.3)                 # rate limit
+            flush = comport.read_all()      # flush inbound buffer
 
         except KeyboardInterrupt:
             break
