@@ -24,11 +24,11 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 | D13 | led (arduino onboard) |
 
 ### State-diagram
-|state|desc|duration|display|nextstate|
-|---|---|---|---|---
-| IDLE | wait for start, led off | forever | --:-- | PRECOUNTING |
-| PRECOUNTING | show remaining time | 1sec | 30:00 (steady) | COUNTING |
-| COUNTING | show countdown | timer | 21:43 (colon blinking) | PREFINISHED |
-| PREFINISHED | show flashing zero | 1 sec | 00:00 (flashing) | FINISHED |
-| FINISHED | show steady zero, led on | forever | 00:00 | IDLE
+|state|desc|display|led|duration|
+|---|---|---|---|---|
+| IDLE | wait for start |  --:-- | off |forever / until (1) pressed|
+| PRECOUNTING | show remaining time | 30:00 (steady) | off |  1sec |
+| COUNTING | show countdown | 21:43 (colon blinking)| off |  30sec |
+| PREFINISHED | show flashing zero | 00:00 (flashing)| off | 1 sec |
+| FINISHED | show steady zero, led on |  00:00 (steady)| on |forever / until (*) pressed |
 

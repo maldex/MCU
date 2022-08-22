@@ -143,7 +143,7 @@ void loop()
 		else { displayPrint(INT16_MIN, false); }
 		delay(100);
 
-		if ((millisNow - last_statechange) > 3000) {
+		if (state_age > 3000) {
 			last_statechange = millisNow;
 			state = finished;
 		}
