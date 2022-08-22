@@ -24,7 +24,7 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 | D13 | led (arduino onboard) |
 
 ### State-diagram
-|state|desc|display|led|duration|
+|state|desc|display|led|condition|
 |---|---|---|---|---|
 | IDLE | wait for start |  --:-- | off |forever / until (1) pressed|
 | PRECOUNTING | show remaining time | 30:00 (steady) | off |  1sec |

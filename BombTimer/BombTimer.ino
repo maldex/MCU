@@ -15,11 +15,11 @@
 #define brigt_addr 0xFB  // EEPROM address of value
 
 enum status {
-	idle,
-	precount,
-	counting,
-	prefinished,
-	finished
+	idle = 10,
+	precount = 20,
+	counting = 30,
+	prefinished = 40,
+	finished = 50,
 };
 
 Adafruit_7segment Display = Adafruit_7segment();
@@ -68,10 +68,9 @@ void displayPrint(int value, bool colon = true){
 	default:
 		// print number leading zero
 		Display.print(value);
-		if (value<10000) Display.writeDigitNum(0, 0);
-		if (value<1000) Display.writeDigitNum(1, 0);
-		if (value<100) Display.writeDigitNum(2, 0);
-		if (value<10) Display.writeDigitNum(3, 0);
+		if (value<1000) Display.writeDigitNum(0, 0);
+		if (value<100) Display.writeDigitNum(1, 0);
+		if (value<10) Display.writeDigitNum(2, 0);
 		break;
 	}
 	Display.drawColon(colon);
@@ -110,43 +109,69 @@ void setup()
 
 void loop()
 {
-	//	if (digitalRead(btn_tl)){Display.print(1111); Display.writeDisplay(); return; }
-	//	if (digitalRead(btn_tr)){Display.print(3333); Display.writeDisplay(); return; }
-	//	if (digitalRead(btn_bl)){Display.print(7777); Display.writeDisplay(); return; }
-	//	if (digitalRead(btn_br)){Display.print(9999); Display.writeDisplay(); return; }
+	// gather facts
+	bool keypress_tl = digitalRead(btn_tl);
+	bool keypress_tr = digitalRead(btn_tr);
+	bool keypress_bl = digitalRead(btn_bl);
+	bool keypress_br = digitalRead(btn_br);
 
+	unsigned long now = millis();
+	unsigned long state_age = (now - last_statechange);
 
 	gobal_counter++;
-	unsigned long millisNow = millis();
-	float state_age = (millisNow - last_statechange);
-	float remaining = EEPROM.read(value_addr) - (millisNow - last_statechange) ;
 
+	// little bit of reporting
+	Serial.println();
+	Serial.print(keypress_tl);Serial.print(keypress_tr);Serial.print(keypress_bl);Serial.print(keypress_br);
+	Serial.print(" "); Serial.print(state);
+	Serial.print(" "); Serial.print(state_age);
+
+	// enter the state-machinery
 	switch (state){
 	case idle:
 		digitalWrite(led, false);
 		displayPrint(INT16_MAX); // just dashes
-		if (digitalRead(btn_tl)) {
-			last_statechange = millisNow;
-			state = prefinished;
+		if (keypress_tl) {
+			last_statechange = now;
+			state = precount;
 		}
 		break;
 
 	case precount:
-
+		displayPrint(EEPROM.read(value_addr)*100);
+		if (state_age > 1000){
+			last_statechange = now;
+			state = counting;
+		}
 		break;
 
 	case counting:
+		signed long remaining = 3 * 1000 - state_age ;
+		displayPrint(remaining/10);
+		Serial.print(" "); Serial.print(remaining);
+		if (remaining <= 0){
+			last_statechange = now;
+			state = finished;
+		}
 		break;
 
 	case prefinished:
+		Serial.println("PREFINISHED");
+		break;
+
+
+
+	case 40:
+		delay(1000);
+
+		Serial.print("PREFIN"); Serial.print(gobal_counter);
 		if (gobal_counter%2){ displayPrint(0); }
 		else { displayPrint(INT16_MIN, false); }
-		delay(100);
-
-		if (state_age > 3000) {
-			last_statechange = millisNow;
-			state = finished;
-		}
+//
+//		if (state_age > 3000) {
+//			last_statechange = now;
+//			state = finished;
+//		}
 
 		break;
 
@@ -157,7 +182,10 @@ void loop()
 		if (digitalRead(btn_bl)) {state = idle;}
 		break;
 
+
+
 	default: break;  // should never happen
 	}
 
+	delay(10);
 }
