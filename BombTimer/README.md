@@ -11,7 +11,7 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 ### wiring
 | Arduino Pin | Component |
 |---|---|
-| GND  | GND of buttons and display  |
+| GND  | GND of battery, buttons and display  |
 | 3.3V  | positive/resistor supply for buttons  |
 | 5V  | powersupply of display  |
 | Vin  | positive battery  |
@@ -24,6 +24,17 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 | D13 | led (arduino onboard)  |
 
 ### State-diagram
+|state|desc|duration|display|nextstate|
+|---|---|---|---|---
 
 
+=IDLE
+
+=PRECOUNTING
+
+=COUNTING
+
+=PREFINISHED
+
+=FINISHED
 
