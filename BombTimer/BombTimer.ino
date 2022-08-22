@@ -16,8 +16,9 @@
 
 enum status {
 	idle,
-	starting,
+	precount,
 	counting,
+	prefinished,
 	finished
 };
 
@@ -25,7 +26,7 @@ Adafruit_7segment Display = Adafruit_7segment();
 status state = idle;
 
 void setTimerValue(){
-	Serial.println("entering set timer");
+	Serial.println("set timer - press reset to finish");
 	uint8_t value = EEPROM.read(value_addr);
 	Display.blinkRate(1);
 	while (true) {  // loop forever
@@ -39,7 +40,7 @@ void setTimerValue(){
 }
 
 void setBrightness(){
-	Serial.println("entering set timer");
+	Serial.println("set brightness - press reset to finish");
 	uint8_t value = EEPROM.read(brigt_addr);
 	Display.blinkRate(1);
 	while (true) {  // loop forever
@@ -53,35 +54,11 @@ void setBrightness(){
 	}
 }
 
-void setup()
-{
-	Serial.begin(9600); Serial.println("7 Segment BombTimer");
-
-	pinMode(btn_tl, INPUT);
-	pinMode(btn_tr, INPUT);
-	pinMode(btn_bl, INPUT);
-	pinMode(btn_br, INPUT);
-	pinMode(led, OUTPUT);
-
-	Display.begin(0x73);
-	Display.setBrightness(EEPROM.read(brigt_addr));
-
-	if (digitalRead(btn_br)) { setTimerValue();	}
-	if (digitalRead(btn_bl)) { setBrightness();	}
-
-
-}
-
-// The loop function is called in an endless loop
-int counter = 0;
-
 
 void displayPrint(int value, bool colon = true){
-
 	switch (value) {
 	case INT16_MAX:
 		// just print dashes
-		//		Display.print(-9999);
 		for (int digit = 0; digit < 5; digit++) { Display.writeDigitRaw(digit, 0x40); }
 		break;
 	case INT16_MIN:
@@ -101,6 +78,36 @@ void displayPrint(int value, bool colon = true){
 	Display.writeDisplay();
 }
 
+
+int gobal_counter = 0;
+unsigned long last_statechange = 0;
+
+void setup()
+{
+	Serial.begin(9600); Serial.println("7 Segment BombTimer");
+
+	pinMode(btn_tl, INPUT);
+	pinMode(btn_tr, INPUT);
+	pinMode(btn_bl, INPUT);
+	pinMode(btn_br, INPUT);
+	pinMode(led, OUTPUT);
+
+	Display.begin(0x73);
+	Display.setBrightness(EEPROM.read(brigt_addr));
+
+	if (digitalRead(btn_br)) {
+		setTimerValue();
+	}
+	if (digitalRead(btn_bl)) {
+		setBrightness();
+	}
+
+	last_statechange = millis();
+}
+
+
+
+
 void loop()
 {
 	//	if (digitalRead(btn_tl)){Display.print(1111); Display.writeDisplay(); return; }
@@ -109,24 +116,45 @@ void loop()
 	//	if (digitalRead(btn_br)){Display.print(9999); Display.writeDisplay(); return; }
 
 
+	gobal_counter++;
 	unsigned long millisNow = millis();
-	counter++;
+	float state_age = (millisNow - last_statechange);
+	float remaining = EEPROM.read(value_addr) - (millisNow - last_statechange) ;
 
 	switch (state){
 	case idle:
 		digitalWrite(led, false);
 		displayPrint(INT16_MAX); // just dashes
-		if (digitalRead(btn_tl)) {state = finished;}
+		if (digitalRead(btn_tl)) {
+			last_statechange = millisNow;
+			state = prefinished;
+		}
+		break;
+
+	case precount:
+
+		break;
+
+	case counting:
+		break;
+
+	case prefinished:
+		if (gobal_counter%2){ displayPrint(0); }
+		else { displayPrint(INT16_MIN, false); }
+		delay(100);
+
+		if ((millisNow - last_statechange) > 3000) {
+			last_statechange = millisNow;
+			state = finished;
+		}
+
 		break;
 
 	case finished:
+		displayPrint(0);
 		digitalWrite(led, true);
-		if (counter%2){ displayPrint(0); }
-		else { displayPrint(INT16_MIN, false); }
 
-		delay(100);
 		if (digitalRead(btn_bl)) {state = idle;}
-
 		break;
 
 	default: break;  // should never happen

@@ -11,30 +11,24 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 ### wiring
 | Arduino Pin | Component |
 |---|---|
-| GND  | GND of battery, buttons and display  |
-| 3.3V  | positive/resistor supply for buttons  |
-| 5V  | powersupply of display  |
-| Vin  | positive battery  |
-| A0 | button top right (3)  |
-| A1 | button top left (1)  |
-| A2 | button bottom right (#)  |
-| A3 | button bottom left (*)  |
-| A4/SDA  | I2C to display (D)  |
-| A5/SCL  | I2C to display (C)  |
-| D13 | led (arduino onboard)  |
+| GND | GND of battery, buttons and display |
+| 3.3V | positive/resistor supply for buttons |
+| 5V | powersupply of display |
+| Vin | positive battery |
+| A0 | button top right (3) |
+| A1 | button top left (1) |
+| A2 | button bottom right (#) |
+| A3 | button bottom left (*) |
+| A4/SDA  | I2C to display (D) |
+| A5/SCL  | I2C to display (C) |
+| D13 | led (arduino onboard) |
 
 ### State-diagram
 |state|desc|duration|display|nextstate|
 |---|---|---|---|---
-
-
-=IDLE
-
-=PRECOUNTING
-
-=COUNTING
-
-=PREFINISHED
-
-=FINISHED
+| IDLE | wait for start, led off | forever | --:-- | PRECOUNTING |
+| PRECOUNTING | show remaining time | 1sec | 30:00 (steady) | COUNTING |
+| COUNTING | show countdown | timer | 21:43 (colon blinking) | PREFINISHED |
+| PREFINISHED | show flashing zero | 1 sec | 00:00 (flashing) | FINISHED |
+| FINISHED | show steady zero, led on | forever | 00:00 | IDLE
 
