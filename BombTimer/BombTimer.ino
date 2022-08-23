@@ -1,6 +1,6 @@
 #include "Arduino.h"
 #include "EEPROM.h"
-#include "Adafruit_LEDBackpack.h"
+#include "Adafruit_LEDBackpack.h"  /* Adafruit LED Backpack Library */
 
 
 
@@ -21,9 +21,9 @@ enum status {
 	prefinished = 40,
 	finished = 50,
 };
-
-Adafruit_7segment Display = Adafruit_7segment();
 status state = idle;
+Adafruit_7segment Display = Adafruit_7segment();
+
 
 void setTimerValue(){
 	Serial.println("set timer - press reset to finish");
@@ -66,11 +66,13 @@ void displayPrint(int value, bool colon = true){
 		for (int digit = 0; digit < 5; digit++) { Display.writeDigitRaw(digit, 0x00); }
 		break;
 	default:
+
 		// print number leading zero
 		Display.print(value);
 		if (value<1000) Display.writeDigitNum(0, 0);
 		if (value<100) Display.writeDigitNum(1, 0);
 		if (value<10) Display.writeDigitNum(2, 0);
+		if (value==0) Display.writeDigitNum(3, 0);
 		break;
 	}
 	Display.drawColon(colon);
@@ -102,10 +104,13 @@ void setup()
 	}
 
 	last_statechange = millis();
+
+
 }
 
 
-
+unsigned long now, state_age;
+signed long remaining;
 
 void loop()
 {
@@ -115,8 +120,8 @@ void loop()
 	bool keypress_bl = digitalRead(btn_bl);
 	bool keypress_br = digitalRead(btn_br);
 
-	unsigned long now = millis();
-	unsigned long state_age = (now - last_statechange);
+	now = millis();
+	state_age = (now - last_statechange);
 
 	gobal_counter++;
 
@@ -127,64 +132,60 @@ void loop()
 	Serial.print(" "); Serial.print(state_age);
 
 	// enter the state-machinery
-	switch (state){
+	switch(state){
+
 	case idle:
+		Serial.print(" idle");
 		digitalWrite(led, false);
 		displayPrint(INT16_MAX); // just dashes
 		if (keypress_tl) {
-			last_statechange = now;
-			state = precount;
+			last_statechange = now; state = precount;
 		}
 		break;
 
 	case precount:
+		Serial.print(" precount");
 		displayPrint(EEPROM.read(value_addr)*100);
-		if (state_age > 1000){
-			last_statechange = now;
-			state = counting;
+		if (state_age > 1000) {
+			last_statechange = now; state = counting;
 		}
 		break;
 
 	case counting:
-		signed long remaining = 3 * 1000 - state_age ;
-		displayPrint(remaining/10);
+		Serial.print(" counting");
+		remaining = int(EEPROM.read(value_addr)) * 1000 - state_age ;
+		displayPrint((int)remaining/10);
 		Serial.print(" "); Serial.print(remaining);
-		if (remaining <= 0){
-			last_statechange = now;
-			state = finished;
+		if (remaining <= 0) {
+			last_statechange = now; state = prefinished;
 		}
+		if (keypress_tl) last_statechange = now;
 		break;
 
 	case prefinished:
-		Serial.println("PREFINISHED");
-		break;
-
-
-
-	case 40:
-		delay(1000);
-
-		Serial.print("PREFIN"); Serial.print(gobal_counter);
-		if (gobal_counter%2){ displayPrint(0); }
-		else { displayPrint(INT16_MIN, false); }
-//
-//		if (state_age > 3000) {
-//			last_statechange = now;
-//			state = finished;
-//		}
-
+		Serial.print(" prefinished");
+		if (gobal_counter%2){ displayPrint(0); } // display 00:00
+		else { displayPrint(INT16_MIN, false); } // switch off
+		if (state_age > 2000) {
+			last_statechange = now; state = finished;
+		}
+		delay(100);
 		break;
 
 	case finished:
-		displayPrint(0);
+		Serial.print(" finished");
 		digitalWrite(led, true);
-
-		if (digitalRead(btn_bl)) {state = idle;}
+		displayPrint(0);
+		if (keypress_br) {
+			last_statechange = now; state = idle;
+		}
 		break;
 
+	default:
+		Serial.print(" DEFAULT SHOULD NOT HAPPEN");
+		while (true) {delay(1000);}
+		break;
 
-
-	default: break;  // should never happen
 	}
 
 	delay(10);
