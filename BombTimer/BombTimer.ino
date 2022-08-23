@@ -2,19 +2,19 @@
 #include "EEPROM.h"
 #include "Adafruit_LEDBackpack.h"  /* Adafruit LED Backpack Library */
 
+// input and output ports
+#define b_tl A1  // button top left (1)
+#define b_tr A0  // button top right (3)
+#define b_bl A3  // button bottom left (*)
+#define b_br A2  // button bottom right (#)
+#define led 13   // onboard led at pin 13
 
-
-
-#define btn_tl A1  // button top left (1)
-#define btn_tr A0  // button top right (3)
-#define btn_bl A3  // button bottom left (*)
-#define btn_br A2  // button bottom right (#)
-#define led 13     // onboard led at pin 13
-
+// eeprom addresses of certain values
 #define value_addr 0xFA  // EEPROM address of value
 #define brigt_addr 0xFB  // EEPROM address of brigtness
 #define facto_addr 0xFC  // EEPROM address of factor
 
+// possible states for the finite state machine
 enum status {
 	idle = 10,
 	precount = 20,
@@ -23,17 +23,18 @@ enum status {
 	finished = 50,
 };
 status state = idle;
-Adafruit_7segment Display = Adafruit_7segment();
 
-
-int global_counter = 0;
+// global runtime variables
+unsigned int global_counter = 0;
 unsigned long last_statechange = 0;
-
 unsigned long now, state_age;
 signed long remaining;
 
+// Instantiate the display itself
+Adafruit_7segment Display = Adafruit_7segment();
 
 
+// function to display values in a nice way
 void displayPrint(int value, bool colon = true){
 	switch (value) {
 	case INT16_MAX:
@@ -59,14 +60,14 @@ void displayPrint(int value, bool colon = true){
 
 
 
-
+// configure function to set total time
 void setTimerValue(){
 	Serial.println("set timer - press reset to finish");
 	uint8_t value = EEPROM.read(value_addr);
 	Display.blinkRate(1);
 	while (true) {  // loop forever
-		if (digitalRead(btn_tr)) value++;
-		if (digitalRead(btn_tl)) value--;
+		if (digitalRead(b_tr)) value++;
+		if (digitalRead(b_tl)) value--;
 		if (value > 100) value = 100;
 		Display.print((int)value); Display.writeDisplay();
 		EEPROM.write(value_addr, value);
@@ -74,13 +75,14 @@ void setTimerValue(){
 	}
 }
 
+// configure function to set brigtness
 void setBrightness(){
 	Serial.println("set brightness - press reset to finish");
 	uint8_t value = EEPROM.read(brigt_addr);
 	Display.blinkRate(1);
 	while (true) {  // loop forever
-		if (digitalRead(btn_tr)) value++;
-		if (digitalRead(btn_tl)) value--;
+		if (digitalRead(b_tr)) value++;
+		if (digitalRead(b_tl)) value--;
 		if (value > 16) value = 16;
 		Display.setBrightness(value);
 		Display.print((int)value); Display.writeDisplay();
@@ -89,14 +91,15 @@ void setBrightness(){
 	}
 }
 
+// configure function to set accuracy
 void setFactor(){
 	Serial.println("set factor - press reset to finish");
 	uint8_t value = EEPROM.read(facto_addr);
 	Display.drawColon(true);
 	Display.blinkRate(1);
 	while (true) {  // loop forever
-		if (digitalRead(btn_tr)) value=1;
-		if (digitalRead(btn_tl)) value=100;
+		if (digitalRead(b_tr)) value=1;
+		if (digitalRead(b_tl)) value=100;
 		displayPrint((int)value, true);
 		EEPROM.write(facto_addr, value);
 		delay(100);
@@ -110,37 +113,34 @@ void setup()  /* ARDUINO NATIVE FUNCTION: RUN ONCE AFTER POWERON */
 {
 	Serial.begin(9600); Serial.println("7 Segment BombTimer");
 
-	pinMode(btn_tl, INPUT);
-	pinMode(btn_tr, INPUT);
-	pinMode(btn_bl, INPUT);
-	pinMode(btn_br, INPUT);
+	pinMode(b_tl, INPUT); pinMode(b_tr, INPUT); pinMode(b_bl, INPUT); pinMode(b_br, INPUT);
 	pinMode(led, OUTPUT);
 
 	Display.begin(0x73);
 	Display.setBrightness(EEPROM.read(brigt_addr));
 
-	if (digitalRead(btn_bl)) {
+	// catch configure functions first if according pressed
+	if (digitalRead(b_bl)) {
 		setTimerValue();
 	}
-	if (digitalRead(btn_br)) {
+	if (digitalRead(b_br)) {
 		setBrightness();
 	}
 
-	if (digitalRead(btn_tr)) {
+	if (digitalRead(b_tr)) {
 		setFactor();
 	}
 
-	last_statechange = millis();
 }
 
 
 void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 {
 	// gather facts
-	bool keypress_tl = digitalRead(btn_tl);
-	bool keypress_tr = digitalRead(btn_tr);
-	bool keypress_bl = digitalRead(btn_bl);
-	bool keypress_br = digitalRead(btn_br);
+	bool keypress_tl = digitalRead(b_tl);
+	bool keypress_tr = digitalRead(b_tr);
+	bool keypress_bl = digitalRead(b_bl);
+	bool keypress_br = digitalRead(b_br);
 
 	now = millis();
 	state_age = (now - last_statechange);
@@ -152,7 +152,6 @@ void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 	Serial.print(keypress_tl);Serial.print(keypress_tr);Serial.print(keypress_bl);Serial.print(keypress_br);
 	Serial.print(" "); Serial.print(state);
 	Serial.print(" "); Serial.print(state_age);
-
 
 	// enter the state-machinery
 	switch(state){
