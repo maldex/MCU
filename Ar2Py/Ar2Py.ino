@@ -30,7 +30,7 @@
 
 Adafruit_LEDBackpack matrix = Adafruit_LEDBackpack();
 
-uint8_t gobal_counter = 0;
+uint8_t global_counter = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -44,12 +44,12 @@ void loop() {
   // a 8x16 bit matrix (8 rows, 16 columns)
   for (uint8_t i=0; i<8; i++) {
     // draw a diagonal row of pixels
-    matrix.displaybuffer[i] = _BV((gobal_counter+i) % 16) | _BV((gobal_counter+i+8) % 16)  ;
+    matrix.displaybuffer[i] = _BV((global_counter+i) % 16) | _BV((global_counter+i+8) % 16)  ;
   }
   // write the changes we just made to the display
   matrix.writeDisplay();
   delay(100);
 
-  gobal_counter++;
-  if (gobal_counter >= 16) gobal_counter = 0;  
+  global_counter++;
+  if (global_counter >= 16) global_counter = 0;  
 }

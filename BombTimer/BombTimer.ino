@@ -25,6 +25,13 @@ status state = idle;
 Adafruit_7segment Display = Adafruit_7segment();
 
 
+int global_counter = 0;
+unsigned long last_statechange = 0;
+
+unsigned long now, state_age;
+signed long remaining;
+
+
 void setTimerValue(){
 	Serial.println("set timer - press reset to finish");
 	uint8_t value = EEPROM.read(value_addr);
@@ -80,10 +87,9 @@ void displayPrint(int value, bool colon = true){
 }
 
 
-int gobal_counter = 0;
-unsigned long last_statechange = 0;
 
-void setup()
+
+void setup()  /* ARDUINO NATIVE FUNCTION: RUN ONCE AFTER POWERON */
 {
 	Serial.begin(9600); Serial.println("7 Segment BombTimer");
 
@@ -96,7 +102,7 @@ void setup()
 	Display.begin(0x73);
 	Display.setBrightness(EEPROM.read(brigt_addr));
 
-	if (digitalRead(btn_br)) {
+	if (digitalRead(btn_tl)) {
 		setTimerValue();
 	}
 	if (digitalRead(btn_bl)) {
@@ -104,15 +110,10 @@ void setup()
 	}
 
 	last_statechange = millis();
-
-
 }
 
 
-unsigned long now, state_age;
-signed long remaining;
-
-void loop()
+void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 {
 	// gather facts
 	bool keypress_tl = digitalRead(btn_tl);
@@ -123,7 +124,7 @@ void loop()
 	now = millis();
 	state_age = (now - last_statechange);
 
-	gobal_counter++;
+	global_counter++;
 
 	// little bit of reporting
 	Serial.println();
@@ -131,9 +132,9 @@ void loop()
 	Serial.print(" "); Serial.print(state);
 	Serial.print(" "); Serial.print(state_age);
 
+
 	// enter the state-machinery
 	switch(state){
-
 	case idle:
 		Serial.print(" idle");
 		digitalWrite(led, false);
@@ -146,27 +147,28 @@ void loop()
 	case precount:
 		Serial.print(" precount");
 		displayPrint(EEPROM.read(value_addr)*100);
-		if (state_age > 1000) {
+		if (keypress_tr) {
 			last_statechange = now; state = counting;
 		}
 		break;
 
 	case counting:
 		Serial.print(" counting");
-		remaining = int(EEPROM.read(value_addr)) * 1000 - state_age ;
-		displayPrint((int)remaining/10);
+		remaining = long(EEPROM.read(value_addr)) * 1000 - state_age ;
+		displayPrint((long)remaining/10, (remaining/500)%2);
 		Serial.print(" "); Serial.print(remaining);
 		if (remaining <= 0) {
 			last_statechange = now; state = prefinished;
 		}
 		if (keypress_tl) last_statechange = now;
+		if (keypress_br) state = idle;
 		break;
 
 	case prefinished:
 		Serial.print(" prefinished");
-		if (gobal_counter%2){ displayPrint(0); } // display 00:00
+		if (global_counter%2){ displayPrint(0); } // display 00:00
 		else { displayPrint(INT16_MIN, false); } // switch off
-		if (state_age > 2000) {
+		if (state_age > 1000) {
 			last_statechange = now; state = finished;
 		}
 		delay(100);
@@ -188,5 +190,6 @@ void loop()
 
 	}
 
+	// thats it, just wait a little bit for buffers to flush
 	delay(10);
 }
