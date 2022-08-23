@@ -12,7 +12,8 @@
 #define led 13     // onboard led at pin 13
 
 #define value_addr 0xFA  // EEPROM address of value
-#define brigt_addr 0xFB  // EEPROM address of value
+#define brigt_addr 0xFB  // EEPROM address of brigtness
+#define facto_addr 0xFC  // EEPROM address of factor
 
 enum status {
 	idle = 10,
@@ -32,35 +33,6 @@ unsigned long now, state_age;
 signed long remaining;
 
 
-void setTimerValue(){
-	Serial.println("set timer - press reset to finish");
-	uint8_t value = EEPROM.read(value_addr);
-	Display.blinkRate(1);
-	while (true) {  // loop forever
-		if (digitalRead(btn_tr)) value++;
-		if (digitalRead(btn_tl)) value--;
-		if (value > 100) value = 100;
-		Display.print((int)value); Display.writeDisplay();
-		delay(100);
-		EEPROM.write(value_addr, value);
-	}
-}
-
-void setBrightness(){
-	Serial.println("set brightness - press reset to finish");
-	uint8_t value = EEPROM.read(brigt_addr);
-	Display.blinkRate(1);
-	while (true) {  // loop forever
-		if (digitalRead(btn_tr)) value++;
-		if (digitalRead(btn_tl)) value--;
-		if (value > 16) value = 16;
-		Display.setBrightness(value);
-		Display.print((int)value); Display.writeDisplay();
-		delay(100);
-		EEPROM.write(brigt_addr, value);
-	}
-}
-
 
 void displayPrint(int value, bool colon = true){
 	switch (value) {
@@ -76,14 +48,59 @@ void displayPrint(int value, bool colon = true){
 
 		// print number leading zero
 		Display.print(value);
-		if (value<1000) Display.writeDigitNum(0, 0);
-		if (value<100) Display.writeDigitNum(1, 0);
-		if (value<10) Display.writeDigitNum(2, 0);
-		if (value==0) Display.writeDigitNum(3, 0);
+		if (value<1000) { Display.writeDigitNum(0, 0); }
+		if (value<100) { Display.writeDigitNum(1, 0); }
+		if (value<10) { Display.writeDigitNum(3, 0); }
 		break;
 	}
 	Display.drawColon(colon);
 	Display.writeDisplay();
+}
+
+
+
+
+void setTimerValue(){
+	Serial.println("set timer - press reset to finish");
+	uint8_t value = EEPROM.read(value_addr);
+	Display.blinkRate(1);
+	while (true) {  // loop forever
+		if (digitalRead(btn_tr)) value++;
+		if (digitalRead(btn_tl)) value--;
+		if (value > 100) value = 100;
+		Display.print((int)value); Display.writeDisplay();
+		EEPROM.write(value_addr, value);
+		delay(100);
+	}
+}
+
+void setBrightness(){
+	Serial.println("set brightness - press reset to finish");
+	uint8_t value = EEPROM.read(brigt_addr);
+	Display.blinkRate(1);
+	while (true) {  // loop forever
+		if (digitalRead(btn_tr)) value++;
+		if (digitalRead(btn_tl)) value--;
+		if (value > 16) value = 16;
+		Display.setBrightness(value);
+		Display.print((int)value); Display.writeDisplay();
+		EEPROM.write(brigt_addr, value);
+		delay(100);
+	}
+}
+
+void setFactor(){
+	Serial.println("set factor - press reset to finish");
+	uint8_t value = EEPROM.read(facto_addr);
+	Display.drawColon(true);
+	Display.blinkRate(1);
+	while (true) {  // loop forever
+		if (digitalRead(btn_tr)) value=1;
+		if (digitalRead(btn_tl)) value=100;
+		displayPrint((int)value, true);
+		EEPROM.write(facto_addr, value);
+		delay(100);
+	}
 }
 
 
@@ -102,11 +119,15 @@ void setup()  /* ARDUINO NATIVE FUNCTION: RUN ONCE AFTER POWERON */
 	Display.begin(0x73);
 	Display.setBrightness(EEPROM.read(brigt_addr));
 
-	if (digitalRead(btn_tl)) {
+	if (digitalRead(btn_bl)) {
 		setTimerValue();
 	}
-	if (digitalRead(btn_bl)) {
+	if (digitalRead(btn_br)) {
 		setBrightness();
+	}
+
+	if (digitalRead(btn_tr)) {
+		setFactor();
 	}
 
 	last_statechange = millis();
@@ -146,7 +167,7 @@ void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 
 	case precount:
 		Serial.print(" precount");
-		displayPrint(EEPROM.read(value_addr)*100);
+		displayPrint(EEPROM.read(value_addr)*100/EEPROM.read(facto_addr));
 		if (keypress_tr) {
 			last_statechange = now; state = counting;
 		}
@@ -155,7 +176,7 @@ void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 	case counting:
 		Serial.print(" counting");
 		remaining = long(EEPROM.read(value_addr)) * 1000 - state_age ;
-		displayPrint((long)remaining/10, (remaining/500)%2);
+		displayPrint((long)remaining/10/EEPROM.read(facto_addr), (remaining/500)%2);
 		Serial.print(" "); Serial.print(remaining);
 		if (remaining <= 0) {
 			last_statechange = now; state = prefinished;
