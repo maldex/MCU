@@ -27,8 +27,8 @@ Movie Project that requires a bomb (clay) and a 'modern' controller, featuring a
 |state|desc|display|led|condition|
 |---|---|---|---|---|
 | IDLE | wait for start |  --:-- | off | until (1) pressed|
+| POSTIDLE | 1.7 seconds to wait |  --:-- | off | 1.7sec |
 | PRECOUNTING | show remaining time | 30:00 (steady) | off |  until (2) pressed |
 | COUNTING | show countdown | 21:43 (colon blinking)| off |  30sec |
 | PREFINISHED | show flashing zero | 00:00 (flashing)| off | 1 sec |
 | FINISHED | show steady zero, led on |  00:00 (steady)| on | until (*) pressed |
-

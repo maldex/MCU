@@ -17,10 +17,11 @@
 // possible states for the finite state machine
 enum status {
 	idle = 10,
-	precount = 20,
-	counting = 30,
-	prefinished = 40,
-	finished = 50,
+	postidle = 20,
+	precount = 30,
+	counting = 40,
+	prefinished = 50,
+	finished = 60,
 };
 status state = idle;
 
@@ -57,8 +58,6 @@ void displayPrint(int value, bool colon = true){
 	Display.drawColon(colon);
 	Display.writeDisplay();
 }
-
-
 
 // configure function to set total time
 void setTimerValue(){
@@ -105,9 +104,6 @@ void setFactor(){
 		delay(100);
 	}
 }
-
-
-
 
 void setup()  /* ARDUINO NATIVE FUNCTION: RUN ONCE AFTER POWERON */
 {
@@ -160,6 +156,14 @@ void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 		digitalWrite(led, false);
 		displayPrint(INT16_MAX); // just dashes
 		if (keypress_tl) {
+			last_statechange = now; state = postidle;
+		}
+		break;
+
+	case postidle:
+		Serial.print(" postidle");
+
+		if (state_age > 1700) {
 			last_statechange = now; state = precount;
 		}
 		break;
@@ -167,7 +171,7 @@ void loop()  /* ARDUINO NATIVE FUNCTION: RUN REPEATEDLY */
 	case precount:
 		Serial.print(" precount");
 		displayPrint(EEPROM.read(value_addr)*100/EEPROM.read(facto_addr));
-		if (keypress_tr) {
+		if (keypress_tr or state_age > 1000) {
 			last_statechange = now; state = counting;
 		}
 		break;
